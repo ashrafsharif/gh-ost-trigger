@@ -3,27 +3,27 @@
 # If a trigger exist for the table, it will make a backup of it and restore
 # it again after gh-ost finishes.
 # Supported options: run, test
-# Example: 
+# Example:
 #   ./gh-ost-trigger.sh test
 #   ./gh-ost-trigger.sh run
 
 
 #### Update this ###
 # This MySQL host
-HOST='10.2.0.80'
+HOST='192.168.0.82'
 # Master MySQL server (to restore trigger)
-MHOST='10.2.0.82'
+MHOST='192.168.0.81'
 # Database
 DB='mydatabase'
 # Table name
-TABLE='tablename'
+TABLE='mytable'
 # Alter statement
-ALTER_STMT="MODIFY COLUMN btx_depositoraccno varchar(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT '' NOT NULL COMMENT 'Depositor bank account no'"
+ALTER_STMT="MODIFY COLUMN depositor_account varchar(30) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT '' NOT NULL COMMENT 'Depositor bank account no', ADD COLUMN fdo_locked SMALLINT(1) NOT NULL DEFAULT 0 AFTER fdo_changestatus"
 ###
 
 ### Setting ###
-# gh-ost postpone failover
-POSTPONE_CUTOVER=1
+# gh-ost postpone failover. Set to one will use a postpone flag file
+POSTPONE_CUTOVER=0
 # remove trigger if exists (will be restored back once gh-ost finishes)
 REMOVE_TRIGGER=1
 # gh-ost's max_load=Threads_connected value
@@ -132,20 +132,34 @@ if [ $OPTION == "run" ]; then
 	echo
 	echo "################# Over to gh-ost #################"
 
-gh-ost \
---host=${HOST} \
---conf=${GH_OST_LOGIN} \
---database=${DB} \
---table=${TABLE} \
---alter="${ALTER_STMT}" \
---chunk-size=${CHUNK_SIZE} \
---max-load=Threads_connected=${MAX_THREADS} \
---exact-rowcount \
---concurrent-rowcount \
---verbose \
---execute
-
-#--postpone-cut-over-flag-file=${PFILE} \
+  if [ $POSTPONE_CUTOVER -eq 0 ]; then
+    gh-ost \
+    --host=${HOST} \
+    --conf=${GH_OST_LOGIN} \
+    --database=${DB} \
+    --table=${TABLE} \
+    --alter="${ALTER_STMT}" \
+    --chunk-size=${CHUNK_SIZE} \
+    --max-load=Threads_connected=${MAX_THREADS} \
+    --exact-rowcount \
+    --concurrent-rowcount \
+    --verbose \
+    --execute
+  else
+    gh-ost \
+    --host=${HOST} \
+    --conf=${GH_OST_LOGIN} \
+    --database=${DB} \
+    --table=${TABLE} \
+    --alter="${ALTER_STMT}" \
+    --chunk-size=${CHUNK_SIZE} \
+    --max-load=Threads_connected=${MAX_THREADS} \
+    --exact-rowcount \
+    --concurrent-rowcount \
+    --verbose \
+    --postpone-cut-over-flag-file=${PFILE} \
+    --execute
+  fi
 
 	RESULT=$?
 
@@ -162,16 +176,16 @@ gh-ost \
 elif [ $OPTION == "test" ]; then
 
 gh-ost \
---host=${HOST} \g
---conf=${GH_OST_LOGIN} \
---database=${DB} \
---table=${TABLE} \
---alter="${ALTER_STMT}" \
---chunk-size=${CHUNK_SIZE} \
---max-load=Threads_connected=${MAX_THREADS} \
---exact-rowcount \
---concurrent-rowcount \
---verbose
+  --host=${HOST} \
+  --conf=${GH_OST_LOGIN} \
+  --database=${DB} \
+  --table=${TABLE} \
+  --alter="${ALTER_STMT}" \
+  --chunk-size=${CHUNK_SIZE} \
+  --max-load=Threads_connected=${MAX_THREADS} \
+  --exact-rowcount \
+  --concurrent-rowcount \
+  --verbose
 
 else
 	echo '[Script] Unknown option'
